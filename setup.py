@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'hsv_node = adas_ar.rosified_hsv:main',
             'image_node = adas_ar.bridge_image:main',
+	    'linefit = adas_ar.linefit:main',
         ],
     },
 )
