@@ -7,22 +7,35 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import os
 
-class ColorDetectionNode(Node):
+class ImageNode(Node):
     def __init__(self):
         super().__init__('hsv_node')
-        self.publisher_ = self.create_publisher(Image, 'color_detected_image', 10)
-        self.subscription = self.create_subscription(
-                Image,
-                'image',
-                self.listener_callback,
-                10)
-        self.subscription
-
+        self.publisher_ = self.create_publisher(Image, 'image', 10)
         self.bridge = CvBridge()
-               
-    def listener_callback(self, msg):
 
-        color_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # Initialize RealSense pipeline 
+        self.pipeline = rs.pipeline()
+        config = rs.config()
+        config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        self.pipeline.start(config)
+
+        # # Load overlay image
+        # script_dir = os.path.dirname(__file__)  # Get the directory of the script
+        # overlay_image_path = os.path.join(script_dir, 'rightarrow.png')
+        # print(overlay_image_path)
+        # self.overlay_image = cv2.imread(overlay_image_path, cv2.IMREAD_UNCHANGED)
+        # if self.overlay_image is None:
+        #     raise FileNotFoundError("Overlay image not found. Please check the file path. New")
+
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+    def timer_callback(self):
+        frames = self.pipeline.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        if not color_frame:
+            return
+
+        color_image = np.asanyarray(color_frame.get_data())
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
 
         lower_blue = np.array([100, 150, 0])
@@ -58,7 +71,7 @@ class ColorDetectionNode(Node):
         # else:
         #     color_detected_image[y1:y2, x1:x2] = overlay_resized
 
-        msg = self.bridge.cv2_to_imgmsg(color_detected_image, encoding="bgr8")
+        msg = self.bridge.cv2_to_imgmsg(color_image, encoding="bgr8")
         self.publisher_.publish(msg)
 
     def destroy_node(self):
@@ -67,7 +80,7 @@ class ColorDetectionNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ColorDetectionNode()
+    node = ImageNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
